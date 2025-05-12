@@ -27,46 +27,41 @@ def mse(lista):
 
 def mse_ponderado(y_izq, y_der):
     total = len(y_izq) + len(y_der)
+    if total == 0:
+        return 0
     return (len(y_izq) / total) * mse(y_izq) + (len(y_der) / total) * mse(y_der)
 
-def mejor_corte(x, y):
-    mejores = {"mse": float("inf")}
-    for i in range(1, len(x)):
-        corte = (x[i - 1] + x[i]) / 2
-        y_izq = [y[j] for j in range(len(x)) if x[j] <= corte]
-        y_der = [y[j] for j in range(len(x)) if x[j] > corte]
-        mse_p = mse_ponderado(y_izq, y_der)
-        if mse_p < mejores["mse"]:
-            mejores = {
-                "corte": corte,
-                "mse": round(mse_p, 4),
-                "izq": [x[j] for j in range(len(x)) if x[j] <= corte],
-                "der": [x[j] for j in range(len(x)) if x[j] > corte],
-                "y_izq": y_izq,
-                "y_der": y_der,
-            }
-    return mejores
+# Cortes deseados en orden
+cortes_deseados = [100, 50, 72, 115, 155]
 
-def construir_arbol(x, y, contador):
-    if len(set(y)) == 1 or not contador.permitir_corte():
+def construir_arbol_manual(x, y, contador):
+    if len(set(y)) == 1 or not contador.permitir_corte() or not cortes_deseados:
         return NodoDecision(prediccion=round(sum(y) / len(y), 2))
 
-    division = mejor_corte(x, y)
-    if not division["izq"] or not division["der"]:
+    corte = cortes_deseados.pop(0)
+    x_izq = [x[i] for i in range(len(x)) if x[i] <= corte]
+    y_izq = [y[i] for i in range(len(x)) if x[i] <= corte]
+    x_der = [x[i] for i in range(len(x)) if x[i] > corte]
+    y_der = [y[i] for i in range(len(x)) if x[i] > corte]
+
+    if not y_izq or not y_der:
         return NodoDecision(prediccion=round(sum(y) / len(y), 2))
 
-    izquierda = construir_arbol(division["izq"], division["y_izq"], contador)
-    derecha = construir_arbol(division["der"], division["y_der"], contador)
+    izquierda = construir_arbol_manual(x_izq, y_izq, contador)
+    derecha = construir_arbol_manual(x_der, y_der, contador)
 
-    return NodoDecision(
-        corte=division["corte"],
-        izquierda=izquierda,
-        derecha=derecha,
-        mse=division["mse"]
-    )
+    return NodoDecision(corte=corte, izquierda=izquierda, derecha=derecha, mse=round(mse_ponderado(y_izq, y_der), 4))
 
-# Para dibujar el árbol con matplotlib
-def dibujar_arbol(nodo, x=0.5, y=1.0, dx=0.2, dy=0.15, ax=None, nivel=0):
+def imprimir_arbol(nodo, nivel=0, lado="Raíz"):
+    sangria = "   " * nivel
+    if nodo.prediccion is not None:
+        print(f"{sangria}|-{lado}-> Hoja: predicción = {nodo.prediccion}")
+    else:
+        print(f"{sangria}|-{lado}-> Nodo (x <= {nodo.corte}) MSE: {nodo.mse}")
+        imprimir_arbol(nodo.izquierda, nivel + 1, "Izq")
+        imprimir_arbol(nodo.derecha, nivel + 1, "Der")
+
+def dibujar_arbol(nodo, x=0.5, y=1.0, dx=0.2, dy=0.15, ax=None):
     if nodo is None:
         return
     if ax is None:
@@ -86,20 +81,22 @@ def dibujar_arbol(nodo, x=0.5, y=1.0, dx=0.2, dy=0.15, ax=None, nivel=0):
 
     if nodo.izquierda:
         ax.plot([x, x - dx], [y - 0.02, y - dy + 0.02], color='black')
-        dibujar_arbol(nodo.izquierda, x - dx, y - dy, dx * 0.6, dy, ax, nivel + 1)
+        dibujar_arbol(nodo.izquierda, x - dx, y - dy, dx * 0.6, dy, ax)
 
     if nodo.derecha:
         ax.plot([x, x + dx], [y - 0.02, y - dy + 0.02], color='black')
-        dibujar_arbol(nodo.derecha, x + dx, y - dy, dx * 0.6, dy, ax, nivel + 1)
+        dibujar_arbol(nodo.derecha, x + dx, y - dy, dx * 0.6, dy, ax)
 
 # === DATOS ===
 x = [10, 20, 30, 70, 75, 80, 90, 110, 115, 125, 130, 180, 190, 200]
 y = [40, 30, 45, 5, 10, 20, 10, 70, 60, 80, 70, 30, 20, 30]
 
-# === CONSTRUIR ÁRBOL DE DECISIÓN ===
-contador = ContadorNodos(max_nodos=3)
-arbol = construir_arbol(x, y, contador)
-print(NodoDecision)
+# === CONSTRUIR ÁRBOL CON CORTES MANUALES ===
+contador = ContadorNodos(max_nodos=5)
+arbol = construir_arbol_manual(x, y, contador)
 
-# === DIBUJAR ÁRBOL EN IMAGEN ===
+# === MOSTRAR EN CONSOLA ===
+imprimir_arbol(arbol)
+
+# === DIBUJAR CON MATPLOTLIB ===
 dibujar_arbol(arbol)
